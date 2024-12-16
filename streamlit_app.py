@@ -290,10 +290,11 @@ def main():
                 st.error(f"Error fetching data for {selected_etf}: {e}")
 
     # Tab 2: Projections Table
+# Tab 2: Projections Table (Fixed for 1-day projection only)
     with tab2:
-        st.header("Projections for All ETFs")
+        st.header("Projections for All ETFs (1-Day Only)")
 
-        # Create a DataFrame for all ETFs
+        # Create a DataFrame for all ETFs' projections
         projection_results = []
         progress_bar = st.progress(0)
         
@@ -304,21 +305,23 @@ def main():
                 close_prices = data['Close'].squeeze()
 
                 if not close_prices.empty:
-                    projections = calculate_projections(pd.DataFrame({'Close': close_prices}))
+                    # Calculate projections for 1-day (using the logic from the charting section)
+                    returns = close_prices.pct_change() * 100  # Percentage change in close prices
+                    projected_returns_1d = returns.tail(5).mean() * 20  # Projected return for 1-day
+                    
                     projection_results.append({
                         "ETF": etf,
-                        "1h Projection": projections["1h"],
-                        "1d Projection": projections["1d"],
+                        "1d Projection": projected_returns_1d,
                     })
-                
+                    
                 # Update progress bar
                 progress = int((i + 1) / len(etf_list) * 100)
                 progress_bar.progress(progress)
             
             except Exception as e:
                 print(f"Error processing {etf}: {e}")
-
-        # Create and display sortable DataFrame
+        
+        # Create and display sortable DataFrame with 1-day projections
         if projection_results:
             projection_df = pd.DataFrame(projection_results)
             st.dataframe(projection_df.sort_values(by="1d Projection", ascending=False))
