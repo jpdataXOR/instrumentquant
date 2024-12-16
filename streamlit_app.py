@@ -19,28 +19,34 @@ def fetch_top_etfs():
 
 # Function to calculate average projections
 def calculate_projections(data):
-    if len(data) > 5:
-        # Calculate the percentage change over the last 5 data points
-        returns_last_5 = data['Close'].pct_change(5).iloc[-1] * 100
+    try:
+        if len(data) > 5:
+            # Calculate the percentage change over the last 5 data points
+            returns_last_5 = data['Close'].pct_change(5).iloc[-1] * 100
 
-        # Improved check for valid numeric value
-        if not pd.isna(returns_last_5):  # Use pd.isna instead of pd.notna
-            projections = {
-                "1h": returns_last_5 * 40,
-                "1d": returns_last_5 * 20,
-            }
+            # Use .empty or .item() to check for valid data
+            if not pd.isna(returns_last_5) and returns_last_5 is not None:
+                projections = {
+                    "1h": returns_last_5 * 40,
+                    "1d": returns_last_5 * 20,
+                }
+            else:
+                projections = {
+                    "1h": None,
+                    "1d": None,
+                }
         else:
             projections = {
                 "1h": None,
                 "1d": None,
             }
-    else:
-        projections = {
+        return projections
+    except Exception as e:
+        print(f"Error in calculate_projections: {e}")
+        return {
             "1h": None,
             "1d": None,
         }
-    return projections
-
 # Fetch ETF list if not already done
 if not os.path.exists(ETF_FILE):
     fetch_top_etfs()
