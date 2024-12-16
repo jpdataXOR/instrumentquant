@@ -4,6 +4,10 @@ import pandas as pd
 import os
 import plotly.graph_objs as go
 import plotly.express as px
+# Function to calculate average projections
+import pandas as pd
+import plotly.graph_objects as go
+
 
 # File path for storing ETF list
 ETF_FILE = "etfs.txt"
@@ -22,6 +26,7 @@ def fetch_top_etfs():
         f.write("\n".join(etfs))
 
 # Function to create the advanced indicators graph
+# Function to create the advanced indicators graph with improved scaling
 def create_indicators_graph(data):
     # Ensure 'Close' is a Series, not a multi-dimensional array
     close_prices = data['Close'].squeeze()
@@ -88,54 +93,147 @@ def create_indicators_graph(data):
     # Add a horizontal line at 0 (zero line)
     fig.add_hline(y=0, line_dash="dash", line_color="gray")
 
-    # Customize layout
+    # Dynamically scale the y-axis based on the max and min values of indicators
+    y_max = max(
+        total_positive, total_negative, current_change, 
+        *thresholds_pos, *thresholds_neg, projected_return_1h, projected_return_1d
+    )
+    y_min = min(
+        total_positive, total_negative, current_change, 
+        *thresholds_pos, *thresholds_neg, projected_return_1h, projected_return_1d
+    )
+
+    # Update layout with dynamic y-axis range
     fig.update_layout(
         title="ETF Performance Indicators",
         xaxis_title="Time Period",
         yaxis_title="Percentage Change",
         height=500,
         width=800,
-        showlegend=True
+        showlegend=True,
+        yaxis=dict(
+            range=[y_min - (y_max - y_min) * 0.1, y_max + (y_max - y_min) * 0.1]  # Adding a margin around the values
+        )
     )
 
     return fig
 
-# Function to calculate average projections
-def calculate_projections(data):
-    try:
-        # Ensure 'Close' is a Series
-        close_prices = data['Close'].squeeze()
+
+
+# Function to create the dynamic indicators graph with progressive projections
+def create_indicators_graph(data):
+    # Ensure 'Close' is a Series, not a multi-dimensional array
+    close_prices = data['Close'].squeeze()
+    
+    # Calculate returns (percentage change)
+    returns = close_prices.pct_change() * 100  # Percentage change in close prices
+    
+    # Initialize lists to store the projections and threshold lines
+    projected_returns_15m = []
+    projected_returns_1h = []
+    projected_returns_1d = []
+    avg_positive = []
+    avg_negative = []
+    current_change = []
+
+    # Number of bars to analyze
+    numBars = 100  # Similar to Pine Script's numBars for average calculation
+    
+    # Loop through the dataset to calculate averages and projections progressively
+    for i in range(1, len(close_prices)):
+        # Calculate the percentage change for the current bar
+        current_change_val = (close_prices[i] - close_prices[i-1]) / close_prices[i-1] * 100
+        current_change.append(current_change_val)
         
-        if len(close_prices) > 5:
-            # Calculate the percentage change over the last 5 data points
-            returns_series = close_prices.pct_change(5)
+        # Calculate average positive and negative returns over the last 'numBars' bars
+        if i >= numBars:
+            # Select last 'numBars' for the calculation
+            subset_returns = returns[i - numBars:i]
+            total_positive = subset_returns[subset_returns > 0].mean() if len(subset_returns[subset_returns > 0]) > 0 else 0
+            total_negative = subset_returns[subset_returns < 0].mean() if len(subset_returns[subset_returns < 0]) > 0 else 0
             
-            # Get the last value safely
-            returns_last_5 = returns_series.iloc[-1]
+            avg_positive.append(total_positive)
+            avg_negative.append(total_negative)
             
-            # Check if it's a valid number
-            if pd.notna(returns_last_5) and isinstance(returns_last_5, (int, float)):
-                projections = {
-                    "1h": returns_last_5 * 40,
-                    "1d": returns_last_5 * 20,
-                }
-            else:
-                projections = {
-                    "1h": None,
-                    "1d": None,
-                }
+            # Project returns based on the last 5 bars (15 minutes, 1 hour, 1 day projections)
+            returns_last_5_bars = returns[i-5:i]
+            returns_last_5_bars_avg = returns_last_5_bars.mean() if len(returns_last_5_bars) > 0 else 0
+
+            projected_return_15min = returns_last_5_bars_avg * 23  # 15-minute projection (scaled)
+            projected_return_1h = returns_last_5_bars_avg * 40     # 1-hour projection (scaled)
+            projected_return_1d = returns_last_5_bars_avg * 20     # 1-day projection (scaled)
+
+            projected_returns_15m.append(projected_return_15min)
+            projected_returns_1h.append(projected_return_1h)
+            projected_returns_1d.append(projected_return_1d)
         else:
-            projections = {
-                "1h": None,
-                "1d": None,
-            }
-        return projections
-    except Exception as e:
-        print(f"Error in calculate_projections: {e}")
-        return {
-            "1h": None,
-            "1d": None,
-        }
+            # For the first few bars, set the averages and projections to NaN or 0
+            avg_positive.append(0)
+            avg_negative.append(0)
+            projected_returns_15m.append(0)
+            projected_returns_1h.append(0)
+            projected_returns_1d.append(0)
+
+    # Create the figure
+    fig = go.Figure()
+
+    # Plot average positive and negative returns
+    fig.add_trace(go.Scatter(
+        x=data.index[numBars:], y=avg_positive,
+        mode='lines', name='Average Positive', line=dict(color='green', dash='solid')
+    ))
+    fig.add_trace(go.Scatter(
+        x=data.index[numBars:], y=avg_negative,
+        mode='lines', name='Average Negative', line=dict(color='red', dash='solid')
+    ))
+
+    # Plot current price change
+    fig.add_trace(go.Scatter(
+        x=data.index[1:], y=current_change,
+        mode='lines', name='Current Change', line=dict(color='black', dash='dot')
+    ))
+
+    # Plot projected returns for different time frames (15 minutes, 1 hour, 1 day)
+    fig.add_trace(go.Scatter(
+        x=data.index[5:], y=projected_returns_15m,
+        mode='lines', name='15 Min Projection', line=dict(color='green', dash='solid')
+    ))
+    fig.add_trace(go.Scatter(
+        x=data.index[5:], y=projected_returns_1h,
+        mode='lines', name='1 Hour Projection', line=dict(color='orange', dash='solid')
+    ))
+    fig.add_trace(go.Scatter(
+        x=data.index[5:], y=projected_returns_1d,
+        mode='lines', name='1 Day Projection', line=dict(color='blue', dash='solid')
+    ))
+
+    # Add a horizontal line at 0 (zero line)
+    fig.add_hline(y=0, line_dash="dash", line_color="gray")
+
+    # Dynamically scale the y-axis based on the max and min values of indicators
+    y_max = max(
+        max(avg_positive), max(avg_negative), max(current_change),
+        max(projected_returns_15m), max(projected_returns_1h), max(projected_returns_1d)
+    )
+    y_min = min(
+        min(avg_positive), min(avg_negative), min(current_change),
+        min(projected_returns_15m), min(projected_returns_1h), min(projected_returns_1d)
+    )
+
+    # Update layout with dynamic y-axis range
+    fig.update_layout(
+        title="Dynamic Projection and Averages",
+        xaxis_title="Time Period",
+        yaxis_title="Percentage Change",
+        height=500,
+        width=800,
+        showlegend=True,
+        yaxis=dict(
+            range=[y_min - (y_max - y_min) * 0.1, y_max + (y_max - y_min) * 0.1]  # Adding a margin around the values
+        )
+    )
+
+    return fig
 
 # Fetch ETF list if not already done
 if not os.path.exists(ETF_FILE):
