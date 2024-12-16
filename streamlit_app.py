@@ -291,8 +291,9 @@ def main():
 
     # Tab 2: Projections Table
 # Tab 2: Projections Table (Fixed for 1-day projection only)
+# Tab 2: Projections Table (Fixed for 20%, 30%, and 40% Projections)
     with tab2:
-        st.header("Projections for All ETFs (1-Day Only)")
+        st.header("Projections for All ETFs (20%, 30%, 40%)")
 
         # Create a DataFrame for all ETFs' projections
         projection_results = []
@@ -305,13 +306,24 @@ def main():
                 close_prices = data['Close'].squeeze()
 
                 if not close_prices.empty:
-                    # Calculate projections for 1-day (using the logic from the charting section)
+                    # Calculate returns (percentage change)
                     returns = close_prices.pct_change() * 100  # Percentage change in close prices
-                    projected_returns_1d = returns.tail(5).mean() * 20  # Projected return for 1-day
                     
+                    # Calculate projections for 20%, 30%, and 40%
+                    projected_return_20 = returns.tail(5).mean() * 20   # Projected return for 20%
+                    projected_return_30 = returns.tail(5).mean() * 30   # Projected return for 30%
+                    projected_return_40 = returns.tail(5).mean() * 40   # Projected return for 40%
+
+                    # Calculate the average of the three projections
+                    average_projection = (projected_return_20 + projected_return_30 + projected_return_40) / 3
+
+                    # Append the results for each ETF
                     projection_results.append({
                         "ETF": etf,
-                        "1d Projection": projected_returns_1d,
+                        "20% Projection": projected_return_20,
+                        "30% Projection": projected_return_30,
+                        "40% Projection": projected_return_40,
+                        "Average Projection": average_projection,
                     })
                     
                 # Update progress bar
@@ -321,10 +333,14 @@ def main():
             except Exception as e:
                 print(f"Error processing {etf}: {e}")
         
-        # Create and display sortable DataFrame with 1-day projections
+        # Create and display sortable DataFrame with projections and average
         if projection_results:
             projection_df = pd.DataFrame(projection_results)
-            st.dataframe(projection_df.sort_values(by="1d Projection", ascending=False))
+
+            # Sort by the "Average Projection" column in descending order (best on top)
+            projection_df_sorted = projection_df.sort_values(by="Average Projection", ascending=False)
+
+            st.dataframe(projection_df_sorted)
         else:
             st.warning("No data available to display projections.")
 
