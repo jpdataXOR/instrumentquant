@@ -23,8 +23,8 @@ def calculate_projections(data):
         # Calculate the percentage change over the last 5 data points
         returns_last_5 = data['Close'].pct_change(5).iloc[-1] * 100
 
-        # Ensure returns_last_5 is a scalar value
-        if pd.notna(returns_last_5):  # Check for a valid numeric value
+        # Improved check for valid numeric value
+        if not pd.isna(returns_last_5):  # Use pd.isna instead of pd.notna
             projections = {
                 "1h": returns_last_5 * 40,
                 "1d": returns_last_5 * 20,
@@ -40,7 +40,6 @@ def calculate_projections(data):
             "1d": None,
         }
     return projections
-
 
 # Fetch ETF list if not already done
 if not os.path.exists(ETF_FILE):
