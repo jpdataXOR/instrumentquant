@@ -300,7 +300,7 @@ def main():
         for i, etf in enumerate(etf_list):
             try:
                 # Specify columns to download and ensure single column
-                data = yf.download(etf, period="10d", interval="1h")[['Close']]
+                data = yf.download(etf, period="5d", interval="1h")[['Close']]
                 close_prices = data['Close'].squeeze()
 
                 if not close_prices.empty:
